@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cupid’s Debugger 💘</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #ffb3d9, #3a003a);
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+<canvas id="game"></canvas>
+
+<script>
+/* ===== CANVAS ===== */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+/* ===== SOUNDS ===== */
+const heartSound = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-game-ball-tap-2073.mp3");
+const beeSound = new Audio("https://assets.mixkit.co/sfx/preview/mixkit-angry-bees-buzz-110.mp3");
+const bgMusic = new Audio("https://assets.mixkit.co/music/preview/mixkit-playful-game-theme-689.mp3");
+bgMusic.loop = true;
+bgMusic.volume = 0.4;
+
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  bgMusic.play().catch(()=>{});
+}
+document.addEventListener("click", unlockAudio);
+document.addEventListener("keydown", unlockAudio);
+
+/* ===== PLAYER (BOW) ===== */
+const bow = {
+  x: canvas.width / 2,
+  y: canvas.height - 60,
+  radius: 90,
+  speed: 18
+};
+
+/* ===== GAME STATE ===== */
+let hearts = [];
+let bees = [];
+let score = 0;
+let lives = 5;
+let difficulty = 1;
+
+let warningText = "";
+let milestoneText = "";
+let milestoneTimer = 0;
+
+/* ===== CONTROLS ===== */
+let left = false;
+let right = false;
+
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft") left = true;
+  if (e.key === "ArrowRight") right = true;
+});
+document.addEventListener("keyup", e => {
+  if (e.key === "ArrowLeft") left = false;
+  if (e.key === "ArrowRight") right = false;
+});
+
+canvas.addEventListener("touchmove", e => {
+  bow.x = e.touches[0].clientX;
+});
+
+/* ===== DATA ===== */
+const heartColors = ["red", "pink", "purple", "blue", "gold"];
+
+const warnings = [
+  "DONT CATCH BEES BESTIE 🐝",
+  "LOVE HURTS 😭",
+  "FOCUS BRO 😤",
+  "WRONG VALENTINE 💀"
+];
+
+const savageMessages = {
+  10: "OKAY HEART STEALER 😏",
+  20: "RIZZ LEVEL: DANGEROUS 🔥",
+  30: "BRO IS UNSTOPPABLE 💘"
+};
+
+/* ===== CREATE OBJECTS ===== */
+function createHeart() {
+  return {
+    x: Math.random() * canvas.width,
+    y: -60,
+    speed: 4 + difficulty,
+    color: heartColors[Math.floor(Math.random() * heartColors.length)]
+  };
+}
+
+function createBee() {
+  return {
+    x: Math.random() * canvas.width,
+    y: -80,
+    speed: 6 + difficulty,
+    shake: Math.random() * 6
+  };
+}
+
+/* ===== INIT ===== */
+for (let i = 0; i < 4; i++) hearts.push(createHeart());
+for (let i = 0; i < 2; i++) bees.push(createBee());
+
+/* ===== DRAW ===== */
+function drawHeart(h) {
+  ctx.fillStyle = h.color;
+  ctx.beginPath();
+  ctx.moveTo(h.x, h.y);
+  ctx.bezierCurveTo(h.x - 20, h.y - 20, h.x - 40, h.y + 10, h.x, h.y + 40);
+  ctx.bezierCurveTo(h.x + 40, h.y + 10, h.x + 20, h.y - 20, h.x, h.y);
+  ctx.fill();
+}
+
+function drawBee(b) {
+  b.x += Math.sin(Date.now() / 120) * b.shake;
+
+  ctx.fillStyle = "black";
+  ctx.beginPath();
+  ctx.ellipse(b.x, b.y, 26, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "yellow";
+  ctx.beginPath();
+  ctx.ellipse(b.x, b.y, 22, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "red";
+  ctx.beginPath();
+  ctx.arc(b.x - 7, b.y - 5, 4, 0, Math.PI * 2);
+  ctx.arc(b.x + 7, b.y - 5, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBow() {
+  ctx.strokeStyle = "#c77dff";
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.arc(bow.x, bow.y, bow.radius, Math.PI, 0);
+  ctx.stroke();
+}
+
+function drawBackground() {
+  for (let i = 0; i < 12; i++) {
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.beginPath();
+    ctx.arc(Math.random()*canvas.width, Math.random()*canvas.height, 2, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+/* ===== COLLISION ===== */
+function caught(x, y) {
+  return (
+    x > bow.x - bow.radius &&
+    x < bow.x + bow.radius &&
+    y > bow.y - 10 &&
+    y < bow.y + 25
+  );
+}
+
+/* ===== GAME LOOP ===== */
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+
+  if (left) bow.x -= bow.speed;
+  if (right) bow.x += bow.speed;
+
+  hearts.forEach(h => {
+    h.y += h.speed;
+    drawHeart(h);
+
+    if (caught(h.x, h.y + 25)) {
+      score++;
+      heartSound.play();
+
+      if (savageMessages[score]) {
+        milestoneText = savageMessages[score];
+        milestoneTimer = 120;
+      }
+
+      Object.assign(h, createHeart());
+    }
+
+    if (h.y > canvas.height) Object.assign(h, createHeart());
+  });
+
+  bees.forEach(b => {
+    b.y += b.speed;
+    drawBee(b);
+
+    if (caught(b.x, b.y)) {
+      lives--;
+      beeSound.play();
+      warningText = warnings[Math.floor(Math.random() * warnings.length)];
+      Object.assign(b, createBee());
+    }
+
+    if (b.y > canvas.height) Object.assign(b, createBee());
+  });
+
+  drawBow();
+
+  if (score > 0 && score % 10 === 0) {
+    difficulty++;
+    if (bees.length < 6) bees.push(createBee());
+    score++;
+  }
+
+  ctx.fillStyle = "white";
+  ctx.font = "22px Arial";
+  ctx.fillText("Score: " + score, 20, 40);
+  ctx.fillText("Lives: " + lives, 20, 70);
+
+  ctx.fillStyle = "#FFF1A8";
+  ctx.font = "26px Arial";
+  ctx.fillText(warningText, canvas.width/2 - 160, 90);
+
+  if (milestoneTimer > 0) {
+    milestoneTimer--;
+    ctx.fillStyle = "#FFD966";
+    ctx.shadowColor = "#FFD966";
+    ctx.shadowBlur = 20;
+    ctx.font = "40px Arial";
+    ctx.fillText(
+      milestoneText,
+      canvas.width/2 - ctx.measureText(milestoneText).width/2,
+      canvas.height/2 - 120
+    );
+    ctx.shadowBlur = 0;
+  }
+
+  if (lives > 0) {
+    requestAnimationFrame(update);
+  } else {
+    ctx.font = "56px Arial";
+    ctx.fillStyle = "#FFD966";
+    ctx.fillText(
+      "HEART BROKEN BESTIE 💔",
+      canvas.width/2 - 330,
+      canvas.height/2
+    );
+  }
+}
+
+update();
+</script>
+</body>
+</html>
